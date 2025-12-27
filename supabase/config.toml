@@ -1,1 +1,7 @@
 project_id = "alqukvqhtzxuygynybui"
+
+[functions.telegram-bot]
+verify_jwt = false
+
+[functions.admin-bot]
+verify_jwt = false
