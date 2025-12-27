@@ -112,6 +112,105 @@ export type Database = {
           },
         ]
       }
+      moderation_logs: {
+        Row: {
+          action: string
+          article_id: string
+          created_at: string | null
+          id: string
+          moderator_telegram_id: number
+          reason: string | null
+        }
+        Insert: {
+          action: string
+          article_id: string
+          created_at?: string | null
+          id?: string
+          moderator_telegram_id: number
+          reason?: string | null
+        }
+        Update: {
+          action?: string
+          article_id?: string
+          created_at?: string | null
+          id?: string
+          moderator_telegram_id?: number
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "moderation_logs_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      moderation_short_ids: {
+        Row: {
+          article_id: string
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          short_id: string
+        }
+        Insert: {
+          article_id: string
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          short_id: string
+        }
+        Update: {
+          article_id?: string
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          short_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "moderation_short_ids_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pending_rejections: {
+        Row: {
+          admin_telegram_id: number
+          article_id: string
+          created_at: string | null
+          id: string
+          short_id: string
+        }
+        Insert: {
+          admin_telegram_id: number
+          article_id: string
+          created_at?: string | null
+          id?: string
+          short_id: string
+        }
+        Update: {
+          admin_telegram_id?: number
+          article_id?: string
+          created_at?: string | null
+          id?: string
+          short_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_rejections_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -235,6 +334,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_short_id: { Args: never; Returns: string }
+      get_or_create_short_id: {
+        Args: { p_article_id: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
