@@ -116,17 +116,6 @@ export function EditArticleModal({ isOpen, onClose, article, onSave }: EditArtic
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Title */}
-          <div className="space-y-2">
-            <Label>Заголовок *</Label>
-            <Input
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              placeholder="Введите заголовок статьи"
-              maxLength={200}
-            />
-          </div>
-
           {/* Topic */}
           <div className="space-y-2">
             <Label>Тема (пару слов о чём статья)</Label>
@@ -135,6 +124,17 @@ export function EditArticleModal({ isOpen, onClose, article, onSave }: EditArtic
               onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
               placeholder="Например: мотивация, успех"
               maxLength={100}
+            />
+          </div>
+
+          {/* Title */}
+          <div className="space-y-2">
+            <Label>Заголовок *</Label>
+            <Input
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              placeholder="Введите заголовок статьи"
+              maxLength={200}
             />
           </div>
 

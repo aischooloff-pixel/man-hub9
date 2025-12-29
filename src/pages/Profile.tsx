@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Header } from '@/components/layout/Header';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { ArticleListCard } from '@/components/articles/ArticleListCard';
+import { ArticleDetailModal } from '@/components/articles/ArticleDetailModal';
+import { EditArticleModal } from '@/components/articles/EditArticleModal';
 import { SettingsModal } from '@/components/profile/SettingsModal';
 import { PremiumModal } from '@/components/profile/PremiumModal';
 import { UserArticlesModal } from '@/components/profile/UserArticlesModal';
@@ -17,10 +19,12 @@ import { useArticles, Article } from '@/hooks/use-articles';
 import { useReputation } from '@/hooks/use-reputation';
 import { useTelegram } from '@/hooks/use-telegram';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { Article as TypeArticle } from '@/types';
 
 export default function Profile() {
   const { profile, loading: profileLoading, error: profileError, articlesCount, updateSocialLinks, refetch } = useProfile();
-  const { getUserArticles } = useArticles();
+  const { getUserArticles, updateArticle, deleteArticle } = useArticles();
   const { getMyReputation } = useReputation();
   const { openTelegramLink, getBotUsername } = useTelegram();
   const [activeTab, setActiveTab] = useState('articles');
@@ -33,6 +37,10 @@ export default function Profile() {
   const [userArticles, setUserArticles] = useState<Article[]>([]);
   const [articlesLoading, setArticlesLoading] = useState(true);
   const [reputation, setReputation] = useState(0);
+  const [selectedArticle, setSelectedArticle] = useState<TypeArticle | null>(null);
+  const [editingArticle, setEditingArticle] = useState<TypeArticle | null>(null);
+  const [favoriteArticles, setFavoriteArticles] = useState<Article[]>([]);
+  const [favoritesLoading, setFavoritesLoading] = useState(true);
 
   // Load user's articles
   useEffect(() => {
@@ -44,6 +52,37 @@ export default function Profile() {
     };
     loadArticles();
   }, [getUserArticles]);
+
+  // Load favorites
+  useEffect(() => {
+    const loadFavorites = async () => {
+      if (!profile?.id) return;
+      setFavoritesLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('article_favorites')
+          .select(`
+            article_id,
+            articles:article_id(
+              *,
+              author:author_id(id, first_name, last_name, username, avatar_url, is_premium, reputation, show_avatar, show_name, show_username, created_at)
+            )
+          `)
+          .eq('user_profile_id', profile.id);
+        
+        if (!error && data) {
+          const articles = data
+            .map((f: any) => f.articles)
+            .filter((a: any) => a && a.status === 'approved') as Article[];
+          setFavoriteArticles(articles);
+        }
+      } catch (err) {
+        console.error('Error loading favorites:', err);
+      }
+      setFavoritesLoading(false);
+    };
+    loadFavorites();
+  }, [profile?.id]);
 
   // Load reputation
   useEffect(() => {
@@ -61,6 +100,23 @@ export default function Profile() {
       setIsSocialLinksOpen(false);
     } else {
       toast.error('Ошибка сохранения');
+    }
+  };
+
+  const handleEditArticle = async (articleId: string, updates: any) => {
+    const success = await updateArticle(articleId, updates);
+    if (success) {
+      const data = await getUserArticles();
+      setUserArticles(data);
+    }
+    return success;
+  };
+
+  const handleDeleteArticle = async (articleId: string) => {
+    const success = await deleteArticle(articleId);
+    if (success) {
+      const data = await getUserArticles();
+      setUserArticles(data);
     }
   };
 
@@ -337,7 +393,32 @@ export default function Profile() {
             <TabsContent value="favorites">
               <div className="rounded-2xl bg-card p-4">
                 <h2 className="mb-4 font-heading text-lg font-semibold">Избранное</h2>
-                <p className="py-8 text-center text-muted-foreground">Избранных статей пока нет</p>
+                {favoritesLoading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <Skeleton key={i} className="h-20 w-full rounded-xl" />
+                    ))}
+                  </div>
+                ) : favoriteArticles.length > 0 ? (
+                  <div className="space-y-3">
+                    {favoriteArticles.map((article, index) => (
+                      <div
+                        key={article.id}
+                        className="animate-slide-up cursor-pointer"
+                        style={{ animationDelay: `${index * 50}ms` }}
+                        onClick={() => setSelectedArticle(mapArticleToListFormat(article))}
+                      >
+                        <span className="text-sm font-medium truncate block">{article.title}</span>
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {article.preview || article.body.substring(0, 100)}
+                        </p>
+                        <hr className="mt-3 border-border/50" />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="py-8 text-center text-muted-foreground">Избранных статей пока нет</p>
+                )}
               </div>
             </TabsContent>
 
@@ -380,6 +461,20 @@ export default function Profile() {
         isOpen={isArticlesOpen}
         onClose={() => setIsArticlesOpen(false)}
         articles={userArticles.map(mapArticleToListFormat)}
+        onArticleClick={(a) => { setIsArticlesOpen(false); setSelectedArticle(a); }}
+        onEditClick={(a) => { setIsArticlesOpen(false); setEditingArticle(a); }}
+        onDeleteClick={handleDeleteArticle}
+      />
+      <EditArticleModal
+        isOpen={!!editingArticle}
+        onClose={() => setEditingArticle(null)}
+        article={editingArticle}
+        onSave={handleEditArticle}
+      />
+      <ArticleDetailModal
+        isOpen={!!selectedArticle}
+        onClose={() => setSelectedArticle(null)}
+        article={selectedArticle}
       />
       <ReputationHistoryModal isOpen={isRepHistoryOpen} onClose={() => setIsRepHistoryOpen(false)} />
       <SocialLinksModal

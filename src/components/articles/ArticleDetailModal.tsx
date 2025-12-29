@@ -117,10 +117,10 @@ export function ArticleDetailModal({
 
       {/* Modal */}
       <div className="absolute inset-x-0 top-0 bottom-0 flex flex-col bg-card animate-fade-in md:inset-4 md:rounded-2xl">
-        {/* Header - shows topic if exists, otherwise title */}
+        {/* Header - shows title */}
         <div className="flex shrink-0 items-center justify-between border-b border-border bg-card p-4">
           <h2 className="font-heading text-lg font-semibold line-clamp-1">
-            {article.topic || article.title}
+            {article.title}
           </h2>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-5 w-5" />
@@ -210,6 +210,10 @@ export function ArticleDetailModal({
 
           {/* Article Body */}
           <div className="p-4">
+            {/* Topic label if exists */}
+            {article.topic && (
+              <p className="text-sm text-muted-foreground mb-2">{article.topic}</p>
+            )}
             {/* Title above body in larger white font */}
             <h1 className="font-heading text-xl font-bold text-foreground mb-4">
               {article.title}
