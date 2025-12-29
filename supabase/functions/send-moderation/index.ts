@@ -70,6 +70,18 @@ Deno.serve(async (req) => {
 
     const authorData = article.author as any;
 
+    // Determine media display - don't send full base64, just indicate presence
+    let mediaDisplay = '';
+    if (article.media_url) {
+      if (article.media_url.startsWith('data:')) {
+        mediaDisplay = '🖼 <b>Медиа:</b> Изображение (загружено)';
+      } else if (article.media_type === 'youtube') {
+        mediaDisplay = `🎬 <b>Медиа:</b> YouTube видео`;
+      } else {
+        mediaDisplay = `🖼 <b>Медиа:</b> ${article.media_url.substring(0, 50)}...`;
+      }
+    }
+
     const message = `🆕 <b>Новая статья на модерации</b>
 
 📝 <b>Заголовок:</b> ${article.title}
@@ -79,7 +91,7 @@ Deno.serve(async (req) => {
 📄 <b>Превью:</b>
 ${article.preview || article.body?.substring(0, 300) || 'Нет превью'}...
 
-${article.media_url ? `🎬 <b>Медиа:</b> ${article.media_url}` : ''}`;
+${mediaDisplay}`;
 
     const keyboard = {
       inline_keyboard: [

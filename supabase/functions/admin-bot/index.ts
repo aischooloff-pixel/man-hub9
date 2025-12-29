@@ -914,7 +914,7 @@ async function handleViewArticle(callbackQuery: any, articleShortId: string) {
 
   const { data: article, error } = await supabase
     .from('articles')
-    .select('id, title, preview, body, created_at, status, author:author_id(username, telegram_id, first_name)')
+    .select('id, title, preview, body, created_at, status, comments_count, author:author_id(username, telegram_id, first_name)')
     .eq('id', articleId)
     .maybeSingle();
 
@@ -933,12 +933,14 @@ async function handleViewArticle(callbackQuery: any, articleShortId: string) {
 👤 <b>Автор:</b> ${authorDisplay}
 📅 <b>Дата:</b> ${date} ${time}
 📊 <b>Статус:</b> ${article.status === 'approved' ? '✅ Опубликована' : article.status}
+💬 <b>Комментариев:</b> ${article.comments_count || 0}
 
 📝 <b>Превью:</b>
 ${article.preview || article.body?.substring(0, 300) || 'Нет превью'}...`;
 
   const keyboard = {
     inline_keyboard: [
+      [{ text: '💬 Комментарии', callback_data: `comments:${articleShortId}:0` }],
       [{ text: '🗑 Удалить статью', callback_data: `delete_article:${articleShortId}` }],
       [{ text: '◀️ Назад к списку', callback_data: 'articles:0' }],
     ],
@@ -946,6 +948,152 @@ ${article.preview || article.body?.substring(0, 300) || 'Нет превью'}..
 
   await answerCallbackQuery(id);
   await editAdminMessage(message.chat.id, message.message_id, articleMessage, { reply_markup: keyboard });
+}
+
+// Handle comments view for an article
+async function handleViewComments(callbackQuery: any, articleShortId: string, page: number = 0) {
+  const { id, message } = callbackQuery;
+  const COMMENTS_PER_PAGE = 5;
+
+  const articleId = await getArticleIdByShortId(articleShortId);
+  if (!articleId) {
+    await answerCallbackQuery(id, '❌ Статья не найдена');
+    return;
+  }
+
+  const { data: article } = await supabase
+    .from('articles')
+    .select('id, title')
+    .eq('id', articleId)
+    .maybeSingle();
+
+  if (!article) {
+    await answerCallbackQuery(id, '❌ Статья не найдена');
+    return;
+  }
+
+  // Get comments with pagination
+  const from = page * COMMENTS_PER_PAGE;
+  const { data: comments, count: totalCount, error } = await supabase
+    .from('article_comments')
+    .select('id, body, created_at, author:author_id(username, telegram_id, first_name)', { count: 'exact' })
+    .eq('article_id', articleId)
+    .order('created_at', { ascending: false })
+    .range(from, from + COMMENTS_PER_PAGE - 1);
+
+  if (error) {
+    console.error('Error fetching comments:', error);
+    await answerCallbackQuery(id, '❌ Ошибка загрузки комментариев');
+    return;
+  }
+
+  const totalPages = Math.ceil((totalCount || 0) / COMMENTS_PER_PAGE);
+
+  let commentsMessage = `💬 <b>Комментарии к статье</b>\n📄 "${article.title.substring(0, 40)}${article.title.length > 40 ? '...' : ''}"\n\n`;
+  commentsMessage += `📊 Всего: ${totalCount || 0} | Страница ${page + 1}/${totalPages || 1}\n\n`;
+
+  if (!comments || comments.length === 0) {
+    commentsMessage += '<i>Комментариев пока нет</i>';
+  } else {
+    for (let i = 0; i < comments.length; i++) {
+      const c = comments[i];
+      const authorData = c.author as any;
+      const authorDisplay = authorData?.username ? `@${authorData.username}` : (authorData?.first_name || `ID:${authorData?.telegram_id || 'N/A'}`);
+      const date = new Date(c.created_at).toLocaleDateString('ru-RU');
+      const time = new Date(c.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+      const shortBody = c.body.length > 100 ? c.body.substring(0, 100) + '...' : c.body;
+      
+      commentsMessage += `${from + i + 1}. 👤 <b>${authorDisplay}</b> | ${date} ${time}\n`;
+      commentsMessage += `   "${shortBody}"\n\n`;
+    }
+  }
+
+  // Build buttons
+  const buttons: any[][] = [];
+
+  // Delete buttons for each comment
+  if (comments && comments.length > 0) {
+    for (const c of comments) {
+      const shortBody = c.body.length > 20 ? c.body.substring(0, 20) + '...' : c.body;
+      buttons.push([{ text: `🗑 "${shortBody}"`, callback_data: `del_comment:${c.id}:${articleShortId}` }]);
+    }
+  }
+
+  // Pagination
+  const navButtons: any[] = [];
+  if (page > 0) {
+    navButtons.push({ text: '⬅️ Назад', callback_data: `comments:${articleShortId}:${page - 1}` });
+  }
+  if (page < totalPages - 1) {
+    navButtons.push({ text: 'Вперёд ➡️', callback_data: `comments:${articleShortId}:${page + 1}` });
+  }
+  if (navButtons.length > 0) {
+    buttons.push(navButtons);
+  }
+
+  buttons.push([{ text: '◀️ К статье', callback_data: `article:${articleShortId}` }]);
+
+  const keyboard = { inline_keyboard: buttons };
+
+  await answerCallbackQuery(id);
+  await editAdminMessage(message.chat.id, message.message_id, commentsMessage, { reply_markup: keyboard });
+}
+
+// Handle delete comment
+async function handleDeleteComment(callbackQuery: any, commentId: string, articleShortId: string) {
+  const { id, message } = callbackQuery;
+
+  const { data: comment, error: findErr } = await supabase
+    .from('article_comments')
+    .select('id, body, article_id, author:author_id(telegram_id)')
+    .eq('id', commentId)
+    .maybeSingle();
+
+  if (findErr || !comment) {
+    await answerCallbackQuery(id, '❌ Комментарий не найден');
+    return;
+  }
+
+  // Delete comment
+  const { error } = await supabase
+    .from('article_comments')
+    .delete()
+    .eq('id', commentId);
+
+  if (error) {
+    console.error('Error deleting comment:', error);
+    await answerCallbackQuery(id, '❌ Ошибка удаления');
+    return;
+  }
+
+  // Decrement comments_count on article
+  const { data: article } = await supabase
+    .from('articles')
+    .select('comments_count')
+    .eq('id', comment.article_id)
+    .maybeSingle();
+  
+  if (article) {
+    await supabase
+      .from('articles')
+      .update({ comments_count: Math.max(0, (article.comments_count || 1) - 1) })
+      .eq('id', comment.article_id);
+  }
+
+  // Notify comment author
+  const authorData = comment.author as any;
+  if (authorData?.telegram_id) {
+    const shortBody = comment.body.length > 50 ? comment.body.substring(0, 50) + '...' : comment.body;
+    await sendUserMessage(authorData.telegram_id, `ℹ️ <b>Уведомление</b>
+
+Ваш комментарий был удалён администратором:
+"${shortBody}"`);
+  }
+
+  await answerCallbackQuery(id, '✅ Комментарий удалён');
+  
+  // Refresh comments list
+  await handleViewComments({ id, message, from: callbackQuery.from }, articleShortId, 0);
 }
 
 // Handle delete article
@@ -2157,6 +2305,10 @@ async function handleCallbackQuery(callbackQuery: any) {
     await handleEditApprove(callbackQuery, param);
   } else if (action === 'edit_reject') {
     await handleEditReject(callbackQuery, param);
+  } else if (action === 'comments') {
+    await handleViewComments(callbackQuery, param, parseInt(param2 || '0'));
+  } else if (action === 'del_comment') {
+    await handleDeleteComment(callbackQuery, param, param2);
   }
 }
 

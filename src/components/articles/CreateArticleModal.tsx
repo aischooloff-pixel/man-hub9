@@ -180,17 +180,6 @@ export function CreateArticleModal({ isOpen, onClose, onSuccess }: CreateArticle
             </Select>
           </div>
 
-          {/* Title */}
-          <div className="space-y-2">
-            <Label>Заголовок *</Label>
-            <Input
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              placeholder="Введите заголовок статьи"
-              maxLength={200}
-            />
-          </div>
-
           {/* Topic */}
           <div className="space-y-2">
             <Label>Тема (пару слов о чём статья)</Label>
@@ -199,6 +188,17 @@ export function CreateArticleModal({ isOpen, onClose, onSuccess }: CreateArticle
               onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
               placeholder="Например: мотивация, успех"
               maxLength={100}
+            />
+          </div>
+
+          {/* Title */}
+          <div className="space-y-2">
+            <Label>Заголовок *</Label>
+            <Input
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              placeholder="Введите заголовок статьи"
+              maxLength={200}
             />
           </div>
 
